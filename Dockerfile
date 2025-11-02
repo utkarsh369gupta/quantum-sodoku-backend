@@ -1,17 +1,30 @@
+# Use a lightweight Python image
 FROM python:3.11-slim
 
+# Prevent Python from writing .pyc files and buffering stdout
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Set the working directory
 WORKDIR /app
 
-# Copy requirements and install dependencies
-COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+# Install system dependencies (optional but helps avoid build failures)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential gcc curl \
+    && rm -rf /var/lib/apt/lists/*
 
-# Copy the application code
+# Copy dependency list first (for caching)
+COPY requirements.txt .
+
+# Force use of prebuilt wheels (avoids maturin / Rust issues)
+RUN pip install --no-cache-dir --only-binary=:all: -r requirements.txt || \
+    pip install --no-cache-dir -r requirements.txt
+
+# Copy your FastAPI app
 COPY . .
 
-# Expose port 8000
-EXPOSE 8000
+# Expose the port that Render expects
+EXPOSE 10000
 
-# Command to run the application
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
-
+# Default command to start the app
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "10000"]
